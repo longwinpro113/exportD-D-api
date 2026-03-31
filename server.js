@@ -98,13 +98,13 @@ app.post('/api/export', async (req, res) => {
 
     const query = `
       INSERT INTO export (
-        export_date, ry_number, shipped_quantity,
+        export_date, ry_number, delivery_round, shipped_quantity,
         s3, s3_5, s4, s4_5, s5, s5_5, s6, s6_5,
         s7, s7_5, s8, s8_5, s9, s9_5, s10, s10_5,
         s11, s11_5, s12, s12_5, s13, s13_5, s14,
         s14_5, s15, s15_5, s16, s16_5, s17, s17_5, s18
       ) VALUES (
-        ?, ?, ?,
+        ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?,
@@ -113,7 +113,7 @@ app.post('/api/export', async (req, res) => {
     `;
 
     const values = [
-      export_date, ry_number, shipped_quantity,
+      export_date, ry_number, req.body.delivery_round || null, shipped_quantity,
       s3||0, s3_5||0, s4||0, s4_5||0, s5||0, s5_5||0, s6||0, s6_5||0,
       s7||0, s7_5||0, s8||0, s8_5||0, s9||0, s9_5||0, s10||0, s10_5||0,
       s11||0, s11_5||0, s12||0, s12_5||0, s13||0, s13_5||0, s14||0,
@@ -144,22 +144,23 @@ app.get('/api/export', async (req, res) => {
     if (date) {
       const parts = date.split('/');
       if (parts.length === 3) {
-        // Full date: DD/MM/YYYY
-        const isoDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
         whereClauses.push('DATE(e.export_date) = ?');
-        params.push(isoDate);
+        params.push(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`);
       } else if (parts.length === 2) {
-        // Short date: DD/MM (any year)
-        const day = parts[0].padStart(2, '0');
-        const month = parts[1].padStart(2, '0');
         whereClauses.push("DATE_FORMAT(e.export_date, '%d/%m') = ?");
-        params.push(`${day}/${month}`);
+        params.push(`${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}`);
       }
     }
 
-    if (ry_number) {
-      whereClauses.push('e.ry_number LIKE ?');
-      params.push(`%${ry_number}%`);
+    if (ry_number || req.query.any) {
+      const val = ry_number || req.query.any;
+      whereClauses.push('(e.ry_number LIKE ? OR e.delivery_round LIKE ?)');
+      params.push(`%${val}%`, `%${val}%`);
+    }
+
+    if (req.query.round) {
+      whereClauses.push('e.delivery_round = ?');
+      params.push(req.query.round);
     }
 
     const whereSQL = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
@@ -169,6 +170,7 @@ app.get('/api/export', async (req, res) => {
         e.id,
         DATE_FORMAT(e.export_date, '%d/%m/%Y') AS export_date,
         e.ry_number,
+        COALESCE(e.delivery_round, o.delivery_round) AS delivery_round,
         e.shipped_quantity,
         e.remaining_quantity,
         e.accumulated_total,
@@ -251,107 +253,90 @@ app.delete('/api/export/:id', async (req, res) => {
 // Tính toán nợ của từng size tại từng thời điểm
 app.get('/api/remaining-stock', async (req, res) => {
   try {
-    const { date, ry_number } = req.query;
+    const { date, ry_number, round } = req.query;
 
-    let whereClauses = [];
-    let params = [];
+    let ordersWhere = [];
+    let ordersParams = [];
+
+    // Filter orders by round if provided
+    if (round) {
+      ordersWhere.push('o.delivery_round = ?');
+      ordersParams.push(round);
+    }
+    
+    if (ry_number || req.query.any) {
+      const val = ry_number || req.query.any;
+      ordersWhere.push('(o.ry_number LIKE ? OR o.delivery_round LIKE ?)');
+      ordersParams.push(`%${val}%`, `%${val}%`);
+    }
+
+    const ordersSQL = ordersWhere.length > 0 ? 'WHERE ' + ordersWhere.join(' AND ') : '';
+
+    // Get ALL relevant orders
+    const [orders] = await db.query(`SELECT * FROM orders o ${ordersSQL}`, ordersParams);
+
+    // Sum of all exports per ry_number (optionally up to a specific date)
+    let exportWhere = [];
+    let exportParams = [];
     if (date) {
       const parts = date.split('/');
       if (parts.length === 3) {
         const isoDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-        whereClauses.push('DATE(e.export_date) = ?');
-        params.push(isoDate);
-      } else if (parts.length === 2) {
-        const day = parts[0].padStart(2, '0');
-        const month = parts[1].padStart(2, '0');
-        whereClauses.push("DATE_FORMAT(e.export_date, '%d/%m') = ?");
-        params.push(`${day}/${month}`);
+        exportWhere.push('DATE(export_date) <= ?');
+        exportParams.push(isoDate);
       }
     }
-    if (ry_number) {
-      whereClauses.push('e.ry_number LIKE ?');
-      params.push(`%${ry_number}%`);
-    }
+    const whereExportSQL = exportWhere.length > 0 ? 'WHERE ' + exportWhere.join(' AND ') : '';
 
-    const whereSQL = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
+    const sizes = [];
+    for (let i = 3; i <= 18; i += 0.5) sizes.push(`SUM(s${i.toString().replace('.', '_')}) as s${i.toString().replace('.', '_')}`);
+    
+    const [exports] = await db.query(`
+      SELECT ry_number, SUM(shipped_quantity) as total_shipped, ${sizes.join(', ')}
+      FROM export
+      ${whereExportSQL}
+      GROUP BY ry_number
+    `, exportParams);
 
-    // Lấy tất cả exports cùng với thông tin size từ orders
-    const query = `
-      SELECT 
-        e.id,
-        DATE_FORMAT(e.export_date, '%d/%m/%Y') AS export_date,
-        e.ry_number,
-        e.shipped_quantity,
-        e.remaining_quantity,
-        e.accumulated_total,
-        o.article,
-        o.model_name,
-        o.total_order_qty AS total_quantity,
-        -- Cột size từ export (số lượng thực xuất)
-        e.s3, e.s3_5, e.s4, e.s4_5, e.s5, e.s5_5, e.s6, e.s6_5,
-        e.s7, e.s7_5, e.s8, e.s8_5, e.s9, e.s9_5, e.s10, e.s10_5,
-        e.s11, e.s11_5, e.s12, e.s12_5, e.s13, e.s13_5, e.s14,
-        e.s14_5, e.s15, e.s15_5, e.s16, e.s16_5, e.s17, e.s17_5, e.s18,
-        -- Cột size từ orders (tổng cần giao)
-        o.s3 as os3, o.s3_5 as os3_5, o.s4 as os4, o.s4_5 as os4_5, o.s5 as os5, o.s5_5 as os5_5, o.s6 as os6, o.s6_5 as os6_5,
-        o.s7 as os7, o.s7_5 as os7_5, o.s8 as os8, o.s8_5 as os8_5, o.s9 as os9, o.s9_5 as os9_5, o.s10 as os10, o.s10_5 as os10_5,
-        o.s11 as os11, o.s11_5 as os11_5, o.s12 as os12, o.s12_5 as os12_5, o.s13 as os13, o.s13_5 as os13_5, o.s14 as os14,
-        o.s14_5 as os14_5, o.s15 as os15, o.s15_5 as os15_5, o.s16 as os16, o.s16_5 as os16_5, o.s17 as os17, o.s17_5 as os17_5, o.s18 as os18
-      FROM export e
-      LEFT JOIN orders o ON e.ry_number = o.ry_number
-      ${whereSQL}
-      ORDER BY e.export_date ASC, e.id ASC
-    `;
+    // Join totals with original orders
+    const exportMap = {};
+    exports.forEach(e => exportMap[e.ry_number] = e);
 
-    const [rows] = await db.query(query, params);
-
-    // Tính toán lại nợ từng size cho mỗi mã đơn hàng
-    // Vì ta lấy theo ORDER BY export_date ASC, id ASC, ta có thể tính tích lũy
-    const ryMap = {}; // Lưu tích lũy từng size của từng mã đơn hàng
     const sizeCols = [];
     for (let i = 3; i <= 18; i += 0.5) sizeCols.push(i.toString().replace('.', '_'));
 
-    const debtRows = rows.map(row => {
-      if (!ryMap[row.ry_number]) {
-        ryMap[row.ry_number] = {};
-        sizeCols.forEach(sc => ryMap[row.ry_number][sc] = 0);
-      }
+    const finalResults = orders.map(o => {
+      const e = exportMap[o.ry_number] || {};
+      const result = {
+        ry_number: o.ry_number,
+        article: o.article,
+        model_name: o.model_name,
+        delivery_round: o.delivery_round,
+        total_quantity: o.total_order_qty,
+        accumulated_total: e.total_shipped || 0,
+        shipped_quantity: 0, // Placeholder
+        remaining_quantity: (parseFloat(o.total_order_qty) || 0) - (parseFloat(e.total_shipped) || 0)
+      };
 
-      const debtRecord = { ...row };
       sizeCols.forEach(sc => {
-        const colName = `s${sc}`;
-        const orderColName = `os${sc}`;
-        ryMap[row.ry_number][sc] += parseFloat(row[colName]) || 0;
-        const remainingForSize = (parseFloat(row[orderColName]) || 0) - ryMap[row.ry_number][sc];
-        debtRecord[colName] = remainingForSize;
-      });
-      return debtRecord;
-    });
-
-    // CHỈ GIỮ LẠI BẢN GHI MỚI NHẤT CỦA MỖI MÃ ĐƠN HÀNG
-    // (Vì Hàng Còn Nợ là báo cáo trạng thái hiện tại, không phải lịch sử)
-    const latestMap = {};
-    debtRows.forEach(row => {
-      // Vì debtRows được lấy theo ORDER BY export_date ASC, id ASC
-      // nên bản ghi sau cùng sẽ ghi đè bản ghi trước đó của cùng ry_number
-      latestMap[row.ry_number] = row;
-    });
-
-    // Lọc lấy những mã đơn vẫn còn nợ (remaining_quantity > 0)
-    const finalResults = Object.values(latestMap)
-      .filter(r => (parseFloat(r.remaining_quantity) || 0) > 0)
-      .sort((a, b) => {
-        // Sắp xếp ngày mới nhất lên đầu
-        const dateA = a.export_date.split('/').reverse().join('-');
-        const dateB = b.export_date.split('/').reverse().join('-');
-        if (dateA !== dateB) return dateB.localeCompare(dateA);
-        return b.id - a.id;
+        const orderVal = parseFloat(o[`s${sc}`]) || 0;
+        const shippedVal = parseFloat(e[`s${sc}`]) || 0;
+        // Remaining per size
+        result[`s${sc}`] = orderVal - shippedVal;
+        // Keep original order size to check if it was ever required
+        result[`os${sc}`] = orderVal;
       });
 
+      return result;
+    });
+
+    // If no search, return Today's view, else return all calculated
+    // The user wants to see "Today's" export record date if they just queried by it?
+    // But since we are showing ALL orders, we use the current status.
     res.json(finalResults);
   } catch (err) {
     console.error('GET /remaining-stock error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch remaining stock.' });
+    res.status(500).json({ error: 'Failed to fetch remaining stock: ' + err.message });
   }
 });
 
