@@ -57,73 +57,34 @@ app.post('/api/orders', async (req, res) => {
 // 📦 API CHO PHIẾU XUẤT KHO (export table)
 // -----------------------------------------------------------------
 
-// Helper: Tính toán lại toàn bộ accumulated_total và remaining_quantity cho một RY_NUMBER
-async function recalculateExportTotals(ry_number) {
-  // 1. Lấy tổng cần giao (total_order_qty) từ bảng orders
-  const [orders] = await db.query('SELECT total_order_qty FROM orders WHERE ry_number = ?', [ry_number]);
-  if (orders.length === 0) return;
-  const total_order_qty = parseFloat(orders[0].total_order_qty) || 0;
-
-  // 2. Lấy tất cả bản ghi xuất của RY này, sắp xếp theo ngày và ID
-  const [exports] = await db.query(
-    'SELECT id, shipped_quantity FROM export WHERE ry_number = ? ORDER BY export_date ASC, id ASC',
-    [ry_number]
-  );
-
-  let runningTotal = 0;
-  for (const row of exports) {
-    runningTotal += parseFloat(row.shipped_quantity) || 0;
-    const remaining = total_order_qty - runningTotal;
-    await db.query(
-      'UPDATE export SET accumulated_total = ?, remaining_quantity = ? WHERE id = ?',
-      [runningTotal, remaining, row.id]
-    );
-  }
-}
-
 // POST: Lưu một bản ghi xuất kho mới
 app.post('/api/export', async (req, res) => {
   try {
-    const {
-      export_date, ry_number,
-      s3, s3_5, s4, s4_5, s5, s5_5, s6, s6_5,
-      s7, s7_5, s8, s8_5, s9, s9_5, s10, s10_5,
-      s11, s11_5, s12, s12_5, s13, s13_5, s14,
-      s14_5, s15, s15_5, s16, s16_5, s17, s17_5, s18
-    } = req.body;
+    const { export_date, ry_number } = req.body;
 
-    const shipped_quantity = Object.keys(req.body)
-      .filter(k => /^s\d+/.test(k))
-      .reduce((sum, k) => sum + (parseFloat(req.body[k]) || 0), 0);
+    // Tự động tạo danh sách 31 cột size từ s3 đến s18
+    const sizeFields = [];
+    for (let i = 3; i <= 18; i += 0.5) {
+      sizeFields.push(`s${i.toString().replace('.', '_')}`);
+    }
 
+    // Tạo chuỗi query động: Đảm bảo số cột luôn khớp số dấu '?'
     const query = `
       INSERT INTO export (
-        export_date, ry_number, delivery_round, shipped_quantity,
-        s3, s3_5, s4, s4_5, s5, s5_5, s6, s6_5,
-        s7, s7_5, s8, s8_5, s9, s9_5, s10, s10_5,
-        s11, s11_5, s12, s12_5, s13, s13_5, s14,
-        s14_5, s15, s15_5, s16, s16_5, s17, s17_5, s18
-      ) VALUES (
-        ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?
-      )
+        export_date, 
+        ry_number, 
+        ${sizeFields.join(', ')}
+      ) VALUES (?, ?, ${sizeFields.map(() => '?').join(', ')})
     `;
 
+    // Chuẩn bị mảng values tương ứng
     const values = [
-      export_date, ry_number, req.body.delivery_round || null, shipped_quantity,
-      s3||0, s3_5||0, s4||0, s4_5||0, s5||0, s5_5||0, s6||0, s6_5||0,
-      s7||0, s7_5||0, s8||0, s8_5||0, s9||0, s9_5||0, s10||0, s10_5||0,
-      s11||0, s11_5||0, s12||0, s12_5||0, s13||0, s13_5||0, s14||0,
-      s14_5||0, s15||0, s15_5||0, s16||0, s16_5||0, s17||0, s17_5||0, s18||0
+      export_date,
+      ry_number,
+      ...sizeFields.map(field => parseFloat(req.body[field]) || 0)
     ];
 
     const [result] = await db.query(query, values);
-    
-    // Tự động tính lại tích lũy cho cả lịch sử của Ry Number này
-    await recalculateExportTotals(ry_number);
 
     res.json({ id: result.insertId, message: 'Export saved.' });
   } catch (err) {
@@ -180,7 +141,8 @@ app.get('/api/export', async (req, res) => {
         e.s3, e.s3_5, e.s4, e.s4_5, e.s5, e.s5_5, e.s6, e.s6_5,
         e.s7, e.s7_5, e.s8, e.s8_5, e.s9, e.s9_5, e.s10, e.s10_5,
         e.s11, e.s11_5, e.s12, e.s12_5, e.s13, e.s13_5, e.s14,
-        e.s14_5, e.s15, e.s15_5, e.s16, e.s16_5, e.s17, e.s17_5, e.s18
+        e.s14_5, e.s15, e.s15_5, e.s16, e.s16_5, e.s17, e.s17_5, e.s18,
+        e.updated_at
       FROM export e
       LEFT JOIN orders o ON e.ry_number = o.ry_number
       ${whereSQL}
@@ -202,10 +164,10 @@ app.patch('/api/export/:id', async (req, res) => {
     const body = req.body;
 
     // Tính lại shipped_quantity từ các ô size trong body (nếu có)
-    const sizeKeys = Object.keys(body).filter(k => /^s\d+/.test(k));
-    if (sizeKeys.length > 0) {
-      body.shipped_quantity = sizeKeys.reduce((sum, k) => sum + (parseFloat(body[k]) || 0), 0);
-    }
+    // const sizeKeys = Object.keys(body).filter(k => /^s\d+/.test(k));
+    // if (sizeKeys.length > 0) {
+    //   body.shipped_quantity = sizeKeys.reduce((sum, k) => sum + (parseFloat(body[k]) || 0), 0);
+    // }
 
     const fields = Object.keys(body).map(k => `${k} = ?`).join(', ');
     const values = [...Object.values(body), id];
@@ -218,9 +180,6 @@ app.patch('/api/export/:id', async (req, res) => {
     const ry_number = rows[0].ry_number;
 
     await db.query(`UPDATE export SET ${fields} WHERE id = ?`, values);
-    
-    // Tính lại toàn bộ tích lũy
-    await recalculateExportTotals(ry_number);
 
     res.json({ message: 'Updated.' });
   } catch (err) {
@@ -239,7 +198,6 @@ app.delete('/api/export/:id', async (req, res) => {
     if (rows.length > 0) {
       const ry_number = rows[0].ry_number;
       await db.query('DELETE FROM export WHERE id = ?', [id]);
-      await recalculateExportTotals(ry_number);
     }
 
     res.json({ message: 'Deleted.' });
@@ -250,7 +208,6 @@ app.delete('/api/export/:id', async (req, res) => {
 });
 
 // GET: Lấy dữ liệu hàng còn nợ (Remaining Stock)
-// Tính toán nợ của từng size tại từng thời điểm
 app.get('/api/remaining-stock', async (req, res) => {
   try {
     const { date, ry_number, round } = req.query;
@@ -258,12 +215,12 @@ app.get('/api/remaining-stock', async (req, res) => {
     let ordersWhere = [];
     let ordersParams = [];
 
-    // Filter orders by round if provided
+    // 1. Lọc đơn hàng (Orders)
     if (round) {
       ordersWhere.push('o.delivery_round = ?');
       ordersParams.push(round);
     }
-    
+
     if (ry_number || req.query.any) {
       const val = ry_number || req.query.any;
       ordersWhere.push('(o.ry_number LIKE ? OR o.delivery_round LIKE ?)');
@@ -271,11 +228,9 @@ app.get('/api/remaining-stock', async (req, res) => {
     }
 
     const ordersSQL = ordersWhere.length > 0 ? 'WHERE ' + ordersWhere.join(' AND ') : '';
-
-    // Get ALL relevant orders
     const [orders] = await db.query(`SELECT * FROM orders o ${ordersSQL}`, ordersParams);
 
-    // Sum of all exports per ry_number (optionally up to a specific date)
+    // 2. Lấy tổng số lượng đã xuất (Exports) tích lũy đến ngày được chọn
     let exportWhere = [];
     let exportParams = [];
     if (date) {
@@ -288,55 +243,56 @@ app.get('/api/remaining-stock', async (req, res) => {
     }
     const whereExportSQL = exportWhere.length > 0 ? 'WHERE ' + exportWhere.join(' AND ') : '';
 
-    const sizes = [];
-    for (let i = 3; i <= 18; i += 0.5) sizes.push(`SUM(s${i.toString().replace('.', '_')}) as s${i.toString().replace('.', '_')}`);
-    
+    const sizesSumSQL = [];
+    for (let i = 3; i <= 18; i += 0.5) {
+      const colName = `s${i.toString().replace('.', '_')}`;
+      sizesSumSQL.push(`SUM(COALESCE(${colName}, 0)) as ${colName}`);
+    }
+
     const [exports] = await db.query(`
-      SELECT ry_number, SUM(shipped_quantity) as total_shipped, ${sizes.join(', ')}
+      SELECT ry_number, SUM(COALESCE(shipped_quantity, 0)) as total_shipped, ${sizesSumSQL.join(', ')}
       FROM export
       ${whereExportSQL}
       GROUP BY ry_number
     `, exportParams);
 
-    // Join totals with original orders
     const exportMap = {};
     exports.forEach(e => exportMap[e.ry_number] = e);
 
-    const sizeCols = [];
-    for (let i = 3; i <= 18; i += 0.5) sizeCols.push(i.toString().replace('.', '_'));
-
+    // 3. Logic tính toán Remaining (Còn lại)
     const finalResults = orders.map(o => {
       const e = exportMap[o.ry_number] || {};
+      
+      const totalOrder = parseFloat(o.total_order_qty) || 0;
+      const totalShipped = parseFloat(e.total_shipped) || 0;
+
       const result = {
         ry_number: o.ry_number,
         article: o.article,
         model_name: o.model_name,
         delivery_round: o.delivery_round,
-        total_quantity: o.total_order_qty,
-        accumulated_total: e.total_shipped || 0,
-        shipped_quantity: 0, // Placeholder
-        remaining_quantity: (parseFloat(o.total_order_qty) || 0) - (parseFloat(e.total_shipped) || 0)
+        total_quantity: totalOrder,
+        accumulated_total: totalShipped,
+        remaining_quantity: totalOrder - totalShipped, // SL Còn lại (Tổng)
       };
 
-      sizeCols.forEach(sc => {
-        const orderVal = parseFloat(o[`s${sc}`]) || 0;
-        const shippedVal = parseFloat(e[`s${sc}`]) || 0;
-        // Remaining per size
-        result[`s${sc}`] = orderVal - shippedVal;
-        // Keep original order size to check if it was ever required
-        result[`os${sc}`] = orderVal;
-      });
+      // Tính SL còn lại cho từng size
+      for (let i = 3; i <= 18; i += 0.5) {
+        const sc = `s${i.toString().replace('.', '_')}`;
+        const orderSizeQty = parseFloat(o[sc]) || 0;
+        const shippedSizeQty = parseFloat(e[sc]) || 0;
+        
+        result[sc] = orderSizeQty - shippedSizeQty; // Giá trị còn lại của size
+        result[`order_${sc}`] = orderSizeQty; // Lưu lại để Frontend biết size nào có đơn
+      }
 
       return result;
     });
 
-    // If no search, return Today's view, else return all calculated
-    // The user wants to see "Today's" export record date if they just queried by it?
-    // But since we are showing ALL orders, we use the current status.
     res.json(finalResults);
   } catch (err) {
     console.error('GET /remaining-stock error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch remaining stock: ' + err.message });
+    res.status(500).json({ error: 'Failed to fetch stock data: ' + err.message });
   }
 });
 
