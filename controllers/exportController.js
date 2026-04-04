@@ -20,7 +20,7 @@ async function recalculateExportTotals(ry_number) {
 exports.createExport = async (req, res) => {
   try {
     const {
-      export_date, ry_number, delivery_round,
+      export_date, ry_number, delivery_round, note,
       s3, s3_5, s4, s4_5, s5, s5_5, s6, s6_5,
       s7, s7_5, s8, s8_5, s9, s9_5, s10, s10_5,
       s11, s11_5, s12, s12_5, s13, s13_5, s14,
@@ -36,7 +36,8 @@ exports.createExport = async (req, res) => {
       s3||0, s3_5||0, s4||0, s4_5||0, s5||0, s5_5||0, s6||0, s6_5||0,
       s7||0, s7_5||0, s8||0, s8_5||0, s9||0, s9_5||0, s10||0, s10_5||0,
       s11||0, s11_5||0, s12||0, s12_5||0, s13||0, s13_5||0, s14||0,
-      s14_5||0, s15||0, s15_5||0, s16||0, s16_5||0, s17||0, s17_5||0, s18||0
+      s14_5||0, s15||0, s15_5||0, s16||0, s16_5||0, s17||0, s17_5||0, s18||0,
+      note || null
     ];
 
     const result = await ExportModel.createExport(values);

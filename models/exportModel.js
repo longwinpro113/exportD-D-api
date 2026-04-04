@@ -23,13 +23,15 @@ class ExportModel {
         s3, s3_5, s4, s4_5, s5, s5_5, s6, s6_5,
         s7, s7_5, s8, s8_5, s9, s9_5, s10, s10_5,
         s11, s11_5, s12, s12_5, s13, s13_5, s14,
-        s14_5, s15, s15_5, s16, s16_5, s17, s17_5, s18
+        s14_5, s15, s15_5, s16, s16_5, s17, s17_5, s18,
+        note
       ) VALUES (
         ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?,
+        ?
       )
     `;
     const [result] = await db.query(query, data);
@@ -60,8 +62,10 @@ class ExportModel {
         e.remaining_quantity,
         e.accumulated_total,
         e.updated_at,
+        e.note,
         o.article,
         o.model_name,
+        o.client_name,
         o.total_order_qty AS total_quantity,
         e.s3, e.s3_5, e.s4, e.s4_5, e.s5, e.s5_5, e.s6, e.s6_5,
         e.s7, e.s7_5, e.s8, e.s8_5, e.s9, e.s9_5, e.s10, e.s10_5,

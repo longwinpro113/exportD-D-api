@@ -27,11 +27,10 @@ exports.updateOrder = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
   try {
-    const { orderCode, article, modelName } = req.body;
-    const result = await OrderModel.create(orderCode, article, modelName);
-    res.json({ id: result.insertId, orderCode, article, modelName });
+    const result = await OrderModel.create(req.body);
+    res.json({ id: result.insertId, message: 'Order created successfully.' });
   } catch (err) {
     console.error('POST /orders error:', err.message);
-    res.status(500).json({ error: 'Failed to create order.' });
+    res.status(500).json({ error: 'Failed to create order: ' + err.message });
   }
 };

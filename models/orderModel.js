@@ -2,7 +2,7 @@ const db = require('../config/db');
 
 class OrderModel {
   static async getAll() {
-    const [rows] = await db.query('SELECT * FROM orders');
+    const [rows] = await db.query('SELECT * FROM orders ORDER BY ry_number DESC');
     return rows;
   }
 
@@ -11,10 +11,14 @@ class OrderModel {
     return rows;
   }
 
-  static async create(orderCode, article, modelName) {
+  static async create(data) {
+    const keys = Object.keys(data).join(', ');
+    const placeholders = Object.keys(data).map(() => '?').join(', ');
+    const values = Object.values(data);
+    
     const [result] = await db.query(
-      'INSERT INTO orders (ry_number, article, model_name) VALUES (?, ?, ?)',
-      [orderCode, article, modelName]
+      `INSERT INTO orders (${keys}) VALUES (${placeholders})`,
+      values
     );
     return result;
   }
