@@ -18,5 +18,5 @@ app.use('/api/export', exportRoutes);
 app.use('/api/remaining-stock', remainingStockRoutes);
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on ${process.env.HOST}:${PORT}`);
 });
