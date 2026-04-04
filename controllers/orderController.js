@@ -2,7 +2,8 @@ const OrderModel = require('../models/orderModel');
 
 exports.getAllOrders = async (req, res) => {
   try {
-    const rows = await OrderModel.getAll();
+    const { client } = req.query;
+    const rows = await OrderModel.getAll(client);
     res.json(rows);
   } catch (err) {
     console.error('GET /orders error:', err.message);
@@ -22,6 +23,16 @@ exports.updateOrder = async (req, res) => {
   } catch (err) {
     console.error('PATCH /orders error:', err.message);
     res.status(500).json({ error: 'Failed to update order.' });
+  }
+};
+
+exports.getClients = async (req, res) => {
+  try {
+    const rows = await OrderModel.getClients();
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /clients error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch clients.' });
   }
 };
 

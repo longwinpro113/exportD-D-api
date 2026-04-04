@@ -1,8 +1,20 @@
 const db = require('../config/db');
 
 class OrderModel {
-  static async getAll() {
-    const [rows] = await db.query('SELECT * FROM orders ORDER BY ry_number DESC');
+  static async getAll(client) {
+    let query = 'SELECT * FROM orders';
+    const params = [];
+    if (client) {
+      query += ' WHERE client = ?';
+      params.push(client);
+    }
+    query += ' ORDER BY ry_number DESC';
+    const [rows] = await db.query(query, params);
+    return rows;
+  }
+
+  static async getClients() {
+    const [rows] = await db.query('SELECT DISTINCT client FROM orders WHERE client IS NOT NULL');
     return rows;
   }
 

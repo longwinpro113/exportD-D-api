@@ -52,7 +52,7 @@ exports.createExport = async (req, res) => {
 
 exports.getExports = async (req, res) => {
   try {
-    let { date, ry_number, round, any, q } = req.query;
+    let { date, ry_number, round, any, q, client } = req.query;
     
     if (q) {
       const trimmed = q.trim();
@@ -64,6 +64,11 @@ exports.getExports = async (req, res) => {
 
     let whereClauses = [];
     let params = [];
+
+    if (client) {
+      whereClauses.push('o.client = ?');
+      params.push(client);
+    }
 
     if (date) {
       const parts = date.split('/');
