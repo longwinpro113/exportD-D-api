@@ -4,6 +4,7 @@ const { sizeColumns } = require('../utils/sizeColumns');
 const buildWritableExportPayload = (body) => {
   const writable = {
     export_date: body.export_date || null,
+    ry_number: typeof body.ry_number === 'string' ? body.ry_number.trim() || null : body.ry_number || null,
     delivery_round: body.delivery_round || null,
     note: body.note || null
   };
@@ -20,7 +21,13 @@ const buildWritableExportPayload = (body) => {
 exports.createExport = async (req, res) => {
   try {
     console.log('POST /export body:', req.body);
-    const result = await exportService.createExport(buildWritableExportPayload(req.body));
+    const payload = buildWritableExportPayload(req.body);
+
+    if (!payload.ry_number) {
+      return res.status(400).json({ error: 'ry_number is required.' });
+    }
+
+    const result = await exportService.createExport(payload);
     res.json({ id: result.insertId, message: 'Export saved.' });
   } catch (err) {
     console.error('POST /export error:', err.message);
