@@ -1,9 +1,8 @@
-const OrderModel = require('../models/orderModel');
+const orderService = require('../services/orderService');
 
 exports.getAllOrders = async (req, res) => {
   try {
-    const { client } = req.query;
-    const rows = await OrderModel.getAll(client);
+    const rows = await orderService.getAllOrders(req.query);
     res.json(rows);
   } catch (err) {
     console.error('GET /orders error:', err.message);
@@ -14,8 +13,7 @@ exports.getAllOrders = async (req, res) => {
 exports.updateOrder = async (req, res) => {
   try {
     const { ry_number } = req.params;
-    const updates = req.body;
-    const success = await OrderModel.update(ry_number, updates);
+    const success = await orderService.updateOrder(ry_number, req.body);
     if (!success) {
       return res.status(400).json({ error: 'No fields to update.' });
     }
@@ -28,7 +26,7 @@ exports.updateOrder = async (req, res) => {
 
 exports.getClients = async (req, res) => {
   try {
-    const rows = await OrderModel.getClients();
+    const rows = await orderService.getClients();
     res.json(rows);
   } catch (err) {
     console.error('GET /clients error:', err.message);
@@ -38,7 +36,7 @@ exports.getClients = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
   try {
-    const result = await OrderModel.create(req.body);
+    const result = await orderService.createOrder(req.body);
     res.json({ id: result.insertId, message: 'Order created successfully.' });
   } catch (err) {
     console.error('POST /orders error:', err.message);

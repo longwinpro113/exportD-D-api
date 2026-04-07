@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const exportController = require('../controllers/exportController');
+const remainingStockController = require('../controllers/remainingStockController');
 
-router.get('/', exportController.getRemainingStock);
+router.get('/', remainingStockController.getRemainingStock);
 
 module.exports = router;

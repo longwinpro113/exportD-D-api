@@ -8,8 +8,12 @@ const remainingStockRoutes = require('./routes/remainingStockRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || process.env.FRONTEND_URL;
 
-app.use(cors());
+app.use(cors({
+  origin: CLIENT_ORIGIN || true
+}));
 app.use(express.json());
 
 // Routes
@@ -17,6 +21,6 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/remaining-stock', remainingStockRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Server running on ${process.env.HOST}:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on ${HOST}:${PORT}`);
 });
