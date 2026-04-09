@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { buildInsertParts, buildUpdateParts } = require('../utils/sqlBuilder');
 const { sizeColumns, sumSizeSelectSql } = require('../utils/sizeColumns');
+const RY_NUMBER_COLLATION = 'utf8mb4_unicode_ci';
 
 const EXPORT_INSERT_COLUMNS = [
   'export_date',
@@ -100,7 +101,8 @@ const getFilteredExports = async (whereSQL, params) => {
       o.total_order_qty AS total_quantity,
       ${sizeColumns.map((column) => `e.${column}`).join(', ')}
     FROM export e
-    LEFT JOIN orders o ON e.ry_number = o.ry_number
+    LEFT JOIN orders o
+      ON e.ry_number COLLATE ${RY_NUMBER_COLLATION} = o.ry_number COLLATE ${RY_NUMBER_COLLATION}
     ${whereSQL}
     ORDER BY e.export_date DESC, e.id ASC
   `;

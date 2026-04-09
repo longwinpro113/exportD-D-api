@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const RY_NUMBER_COLLATION = 'utf8mb4_unicode_ci';
 
 class ExportModel {
   static async getExportsByRyNumber(ry_number) {
@@ -72,7 +73,8 @@ class ExportModel {
         e.s11, e.s11_5, e.s12, e.s12_5, e.s13, e.s13_5, e.s14,
         e.s14_5, e.s15, e.s15_5, e.s16, e.s16_5, e.s17, e.s17_5, e.s18
       FROM export e
-      LEFT JOIN orders o ON e.ry_number = o.ry_number
+      LEFT JOIN orders o
+        ON e.ry_number COLLATE ${RY_NUMBER_COLLATION} = o.ry_number COLLATE ${RY_NUMBER_COLLATION}
       ${whereSQL}
       ORDER BY e.export_date DESC, e.id ASC
     `;
