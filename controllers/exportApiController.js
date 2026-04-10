@@ -73,3 +73,12 @@ exports.deleteExport = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete record.' });
   }
 };
+exports.getMaxMonth = async (req, res) => {
+  try {
+    const maxInfo = await exportService.getMaxMonth(req.query.client);
+    res.json(maxInfo);
+  } catch (err) {
+    console.error('GET /max-month error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch max month.' });
+  }
+};

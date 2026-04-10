@@ -6,6 +6,7 @@ const ORDER_SELECT_COLUMNS = [
   'ry_number',
   'article',
   'model_name',
+  'product',
   'delivery_round',
   'CRD',
   'client_export_date',

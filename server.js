@@ -18,7 +18,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/orders', orderRoutes);
-app.use('/api/export', exportRoutes);
+app.use('/api/daily', exportRoutes);
 app.use('/api/remaining-stock', remainingStockRoutes);
 
 app.listen(PORT, HOST, () => {

@@ -54,10 +54,15 @@ const deleteExport = async (id) => {
   return { found: true, ryNumber: row.ry_number };
 };
 
+const getMaxMonth = async (client) => {
+  return exportData.getMaxMonth(client);
+};
+
 module.exports = {
   createExport,
   getExports,
   updateExport,
   deleteExport,
-  recalculateExportTotals
+  recalculateExportTotals,
+  getMaxMonth
 };

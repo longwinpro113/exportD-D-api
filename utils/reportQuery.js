@@ -1,7 +1,7 @@
 const DATE_SEARCH_REGEX = /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/;
 
 const normalizeReportQuery = (query = {}) => {
-  let { date, ry_number, round, any, q, client } = query;
+  let { date, from, to, ry_number, round, any, q, client } = query;
 
   if (q) {
     const trimmed = q.trim();
@@ -15,7 +15,7 @@ const normalizeReportQuery = (query = {}) => {
     }
   }
 
-  return { date, ry_number, round, any, q, client };
+  return { date, from, to, ry_number, round, any, q, client };
 };
 
 const toIsoDate = (date) => {
@@ -25,7 +25,7 @@ const toIsoDate = (date) => {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 };
 
-const buildExportFilter = ({ date, ry_number, any, round, client }) => {
+const buildExportFilter = ({ date, from, to, ry_number, any, round, client }) => {
   const whereClauses = [];
   const params = [];
 
@@ -42,6 +42,19 @@ const buildExportFilter = ({ date, ry_number, any, round, client }) => {
     } else if (parts.length === 2) {
       whereClauses.push("DATE_FORMAT(e.export_date, '%d/%m') = ?");
       params.push(`${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}`);
+    }
+  }
+
+  if (from || to) {
+    if (from && to) {
+      whereClauses.push('DATE(e.export_date) BETWEEN ? AND ?');
+      params.push(from, to);
+    } else if (from) {
+      whereClauses.push('DATE(e.export_date) >= ?');
+      params.push(from);
+    } else if (to) {
+      whereClauses.push('DATE(e.export_date) <= ?');
+      params.push(to);
     }
   }
 

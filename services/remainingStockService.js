@@ -27,6 +27,7 @@ const getRemainingStock = async (query) => {
       ry_number: order.ry_number,
       article: order.article,
       model_name: order.model_name,
+      product: order.product,
       delivery_round: order.delivery_round,
       total_quantity: order.total_order_qty,
       accumulated_total: exported.total_shipped || 0,

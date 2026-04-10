@@ -97,6 +97,7 @@ const getFilteredExports = async (whereSQL, params) => {
       e.note,
       o.article,
       o.model_name,
+      o.product,
       o.client,
       o.total_order_qty AS total_quantity,
       ${sizeColumns.map((column) => `e.${column}`).join(', ')}
@@ -117,6 +118,7 @@ const getRemainingBaseOrders = async (whereSQL, params) => {
       o.ry_number,
       o.article,
       o.model_name,
+      o.product,
       o.delivery_round,
       o.total_order_qty,
       ${sizeColumns.map((column) => `o.${column}`).join(', ')}
@@ -145,6 +147,30 @@ const getExportTotalsGroupedByRy = async (whereSQL, params) => {
   return rows;
 };
 
+const getMaxMonth = async (client) => {
+  let query = `
+    SELECT DATE_FORMAT(MAX(e.export_date), '%Y-%m') AS max_month, 
+           DATE_FORMAT(MAX(e.export_date), '%Y-%m-%d') AS max_date 
+    FROM export e
+  `;
+  const params = [];
+
+  if (client) {
+    query += `
+      LEFT JOIN orders o 
+        ON e.ry_number COLLATE ${RY_NUMBER_COLLATION} = o.ry_number COLLATE ${RY_NUMBER_COLLATION}
+      WHERE o.client = ?
+    `;
+    params.push(client);
+  }
+
+  const [rows] = await db.query(query, params);
+  return {
+    max_month: rows[0]?.max_month || null,
+    max_date: rows[0]?.max_date || null
+  };
+};
+
 module.exports = {
   getExportsByRyNumber,
   updateExportTotals,
@@ -154,5 +180,6 @@ module.exports = {
   deleteExport,
   getFilteredExports,
   getRemainingBaseOrders,
-  getExportTotalsGroupedByRy
+  getExportTotalsGroupedByRy,
+  getMaxMonth
 };
