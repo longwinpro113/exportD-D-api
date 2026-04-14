@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { buildInsertParts, buildUpdateParts } = require('../utils/sqlBuilder');
 const { sizeColumns, sumSizeSelectSql } = require('../utils/sizeColumns');
 const RY_NUMBER_COLLATION = 'utf8mb4_unicode_ci';
+const DB_COLLATION = 'utf8mb4_unicode_ci';
 
 const EXPORT_INSERT_COLUMNS = [
   'export_date',
@@ -159,7 +160,7 @@ const getMaxMonth = async (client) => {
     query += `
       LEFT JOIN orders o 
         ON e.ry_number COLLATE ${RY_NUMBER_COLLATION} = o.ry_number COLLATE ${RY_NUMBER_COLLATION}
-      WHERE o.client = ?
+      WHERE o.client COLLATE ${DB_COLLATION} = CAST(? AS CHAR CHARACTER SET utf8mb4) COLLATE ${DB_COLLATION}
     `;
     params.push(client);
   }

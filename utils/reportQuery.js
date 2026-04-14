@@ -1,4 +1,5 @@
 const DATE_SEARCH_REGEX = /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/;
+const DB_COLLATION = 'utf8mb4_unicode_ci';
 
 const normalizeReportQuery = (query = {}) => {
   let { date, from, to, ry_number, round, any, q, client } = query;
@@ -30,7 +31,7 @@ const buildExportFilter = ({ date, from, to, ry_number, any, round, client }) =>
   const params = [];
 
   if (client) {
-    whereClauses.push('o.client = ?');
+    whereClauses.push(`o.client COLLATE ${DB_COLLATION} = CAST(? AS CHAR CHARACTER SET utf8mb4) COLLATE ${DB_COLLATION}`);
     params.push(client);
   }
 
@@ -80,7 +81,7 @@ const buildRemainingOrderFilter = ({ round, ry_number, any, client }) => {
   const params = [];
 
   if (client) {
-    whereClauses.push('o.client = ?');
+    whereClauses.push(`o.client COLLATE ${DB_COLLATION} = CAST(? AS CHAR CHARACTER SET utf8mb4) COLLATE ${DB_COLLATION}`);
     params.push(client);
   }
 

@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { buildInsertParts, buildUpdateParts } = require('../utils/sqlBuilder');
 const { sizeColumns } = require('../utils/sizeColumns');
+const DB_COLLATION = 'utf8mb4_unicode_ci';
 
 const ORDER_SELECT_COLUMNS = [
   'ry_number',
@@ -21,7 +22,7 @@ const getAll = async (client) => {
   const params = [];
 
   if (client) {
-    query += ' WHERE client = ?';
+    query += ` WHERE client COLLATE ${DB_COLLATION} = CAST(? AS CHAR CHARACTER SET utf8mb4) COLLATE ${DB_COLLATION}`;
     params.push(client);
   }
 

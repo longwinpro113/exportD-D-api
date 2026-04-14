@@ -66,7 +66,7 @@ exports.getExports = async (req, res) => {
     let params = [];
 
     if (client) {
-      whereClauses.push('o.client = ?');
+      whereClauses.push('o.client COLLATE utf8mb4_unicode_ci = CAST(? AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci');
       params.push(client);
     }
 
