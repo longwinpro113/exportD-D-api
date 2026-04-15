@@ -182,5 +182,22 @@ module.exports = {
   getFilteredExports,
   getRemainingBaseOrders,
   getExportTotalsGroupedByRy,
-  getMaxMonth
+  getMaxMonth,
+  getUniqueExportDates: async (client) => {
+    let query = `
+      SELECT DISTINCT DATE_FORMAT(e.export_date, '%d/%m') as formatted_date, e.export_date
+      FROM export e
+    `;
+    const params = [];
+    if (client) {
+      query += `
+        LEFT JOIN orders o ON e.ry_number COLLATE ${RY_NUMBER_COLLATION} = o.ry_number COLLATE ${RY_NUMBER_COLLATION}
+        WHERE o.client COLLATE ${DB_COLLATION} = CAST(? AS CHAR CHARACTER SET utf8mb4) COLLATE ${DB_COLLATION}
+      `;
+      params.push(client);
+    }
+    query += ` ORDER BY e.export_date DESC LIMIT 50`;
+    const [rows] = await db.query(query, params);
+    return rows;
+  }
 };

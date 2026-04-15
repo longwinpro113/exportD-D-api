@@ -58,11 +58,17 @@ const getMaxMonth = async (client) => {
   return exportData.getMaxMonth(client);
 };
 
+const getAvailableDates = async (client) => {
+  const rows = await exportData.getUniqueExportDates(client);
+  return rows.map((r) => r.formatted_date);
+};
+
 module.exports = {
   createExport,
   getExports,
   updateExport,
   deleteExport,
   recalculateExportTotals,
-  getMaxMonth
+  getMaxMonth,
+  getAvailableDates
 };

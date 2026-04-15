@@ -43,6 +43,9 @@ const buildExportFilter = ({ date, from, to, ry_number, any, round, client }) =>
     } else if (parts.length === 2) {
       whereClauses.push("DATE_FORMAT(e.export_date, '%d/%m') = ?");
       params.push(`${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}`);
+    } else if (date.trim()) {
+      whereClauses.push("DATE_FORMAT(e.export_date, '%d/%m/%Y') LIKE ?");
+      params.push(`%${date.trim()}%`);
     }
   }
 

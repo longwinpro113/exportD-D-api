@@ -82,3 +82,13 @@ exports.getMaxMonth = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch max month.' });
   }
 };
+
+exports.getAvailableDates = async (req, res) => {
+  try {
+    const dates = await exportService.getAvailableDates(req.query.client);
+    res.json(dates);
+  } catch (err) {
+    console.error('GET /dates error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch available dates.' });
+  }
+};
